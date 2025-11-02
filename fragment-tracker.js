@@ -6,16 +6,24 @@
 (function() {
   'use strict';
   
+  // Supabase anon key (public, safe to include in client-side code)
+  var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl4b3Z0cGpvenp6YmhjeGRleXN6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIxMDA5MDAsImV4cCI6MjA3NzY3NjkwMH0.TRnEkDP4aDd-k18Nx0WCmN2OZLZx6COEEAVr612A6ck';
+  
   // Get API key from data attribute or global variable (required)
   var scriptTag = document.currentScript || document.querySelector('script[data-api-key]');
   var apiKeyFromAttr = scriptTag ? scriptTag.getAttribute('data-api-key') : null;
   var apiKey = apiKeyFromAttr || window.CITATIONTRACK_API_KEY || null;
   
-  // Configuration
+  // Get Supabase anon key from data attribute, window variable, or hardcoded fallback
+  // This is public and safe to include in client-side code - same for all users
+  var supabaseAnonKeyFromAttr = scriptTag ? scriptTag.getAttribute('data-supabase-anon-key') : null;
+  var supabaseAnonKey = supabaseAnonKeyFromAttr || window.CITATIONTRACK_SUPABASE_ANON_KEY || SUPABASE_ANON_KEY;
+  
   var config = {
     apiKey: apiKey,
     endpoint: (window.CITATIONTRACK_ENDPOINT || 'https://yxovtpjozzzbhcxdeysz.supabase.co/functions/v1/track'),
-    debug: window.CITATIONTRACK_DEBUG || false
+    debug: window.CITATIONTRACK_DEBUG || false,
+    supabaseAnonKey: supabaseAnonKey
   };
   
   // Validate API key is provided
@@ -219,28 +227,26 @@
     }
     
     // Use sendBeacon if available (reliable for page unload)
-    if (navigator.sendBeacon) {
-      var blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
-      navigator.sendBeacon(config.endpoint, blob);
-      log('Event sent via sendBeacon');
-    } else {
-      // Fallback to fetch
-      fetch(config.endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        keepalive: true,
-        credentials: 'omit' // Don't send credentials to work with CORS wildcard
-      }).then(function(response) {
-        if (response.ok) {
-          log('Event sent successfully');
-        } else {
-          log('Event send failed:', response.status);
-        }
-      }).catch(function(error) {
-        log('Event send error:', error);
-      });
-    }
+    // Note: sendBeacon doesn't support custom headers, so we'll use fetch for Supabase Edge Functions
+    // which require the 'apikey' header
+    fetch(config.endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': config.supabaseAnonKey // Required by Supabase Edge Functions
+      },
+      body: JSON.stringify(payload),
+      keepalive: true,
+      credentials: 'omit' // Don't send credentials to work with CORS wildcard
+    }).then(function(response) {
+      if (response.ok) {
+        log('Event sent successfully');
+      } else {
+        log('Event send failed:', response.status);
+      }
+    }).catch(function(error) {
+      log('Event send error:', error);
+    });
   }
   
   /**
@@ -253,7 +259,7 @@
     log('Current Hash:', window.location.hash);
     log('Document readyState:', document.readyState);
     log('Document Referrer:', document.referrer);
-    log('Preservation script ran?:', window.__preservationScriptRan);
+    log('Preservation script ran?:', window.__preservedTextFragment);
     log('Preserved fragment global?:', window.__preservedTextFragment);
     
     // Also check sessionStorage directly
@@ -281,3 +287,4 @@
   log('Script loaded, starting init...');
   init();
 })();
+
