@@ -6,16 +6,23 @@
 (function() {
   'use strict';
   
-  // Get API key from data attribute or global variable
+  // Get API key from data attribute or global variable (required)
   var scriptTag = document.currentScript || document.querySelector('script[data-api-key]');
   var apiKeyFromAttr = scriptTag ? scriptTag.getAttribute('data-api-key') : null;
+  var apiKey = apiKeyFromAttr || window.CITATIONTRACK_API_KEY || null;
   
   // Configuration
   var config = {
-    apiKey: apiKeyFromAttr || window.CITATIONTRACK_API_KEY || 'demo_api_key_123456',
+    apiKey: apiKey,
     endpoint: (window.CITATIONTRACK_ENDPOINT || 'https://yxovtpjozzzbhcxdeysz.supabase.co/functions/v1/track'),
     debug: window.CITATIONTRACK_DEBUG || false
   };
+  
+  // Validate API key is provided
+  if (!config.apiKey) {
+    console.error('[CitationTrack] Error: API key not provided. Add data-api-key attribute to script tag or set window.CITATIONTRACK_API_KEY');
+    return; // Exit early - don't track without API key
+  }
   
   // Logging helper
   function log(message, data) {
@@ -222,7 +229,8 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
-        keepalive: true
+        keepalive: true,
+        credentials: 'omit' // Don't send credentials to work with CORS wildcard
       }).then(function(response) {
         if (response.ok) {
           log('Event sent successfully');
