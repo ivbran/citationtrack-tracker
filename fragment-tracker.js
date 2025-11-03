@@ -1,7 +1,7 @@
 /**
  * CitationTrack Fragment Tracker
  * Lightweight script to track citations and text fragments
- * Version: 1.0.7
+ * Version: 1.0.8
  */
 (function() {
   'use strict';
@@ -372,6 +372,12 @@
    * Send tracking event to backend
    */
   function sendTrackingEvent(fragment, originalHash) {
+    // Respect Do Not Track (DNT) header - privacy best practice
+    if (navigator.doNotTrack === '1' || navigator.doNotTrack === 'yes') {
+      log('Do Not Track enabled, skipping tracking');
+      return; // Exit early - don't track
+    }
+    
     var trafficInfo = detectTrafficSource(document.referrer);
     
     // Reconstruct full URL with fragment for clickable link

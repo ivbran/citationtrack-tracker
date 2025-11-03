@@ -7,7 +7,7 @@ Lightweight JavaScript tracker for tracking text fragments and AI citations on y
 Add this script to your website's `<head>` section:
 
 ```html
-<script src="https://cdn.jsdelivr.net/gh/ivbran/citationtrack-tracker@v1.0.7/fragment-tracker.js" 
+<script src="https://cdn.jsdelivr.net/gh/ivbran/citationtrack-tracker@v1.0.8/fragment-tracker.js" 
         data-api-key="YOUR_API_KEY" 
         async></script>
 ```
@@ -35,7 +35,7 @@ This tracker is distributed via [jsDelivr CDN](https://www.jsdelivr.com) for fas
 
 **CDN URL:**
 ```
-https://cdn.jsdelivr.net/gh/ivbran/citationtrack-tracker@v1.0.7/fragment-tracker.js
+https://cdn.jsdelivr.net/gh/ivbran/citationtrack-tracker@v1.0.8/fragment-tracker.js
 ```
 
 **Latest version:**
@@ -45,7 +45,7 @@ Check the [GitHub releases](https://github.com/ivbran/citationtrack-tracker/rele
 
 ### Basic Usage (with data attribute):
 ```html
-<script src="https://cdn.jsdelivr.net/gh/ivbran/citationtrack-tracker@v1.0.7/fragment-tracker.js" 
+<script src="https://cdn.jsdelivr.net/gh/ivbran/citationtrack-tracker@v1.0.8/fragment-tracker.js" 
         data-api-key="your_api_key_here" 
         async></script>
 ```
@@ -56,7 +56,7 @@ Check the [GitHub releases](https://github.com/ivbran/citationtrack-tracker/rele
   window.CITATIONTRACK_API_KEY = 'your_api_key_here';
   window.CITATIONTRACK_DEBUG = false; // Enable debug logging
 </script>
-<script src="https://cdn.jsdelivr.net/gh/ivbran/citationtrack-tracker@v1.0.7/fragment-tracker.js" async></script>
+<script src="https://cdn.jsdelivr.net/gh/ivbran/citationtrack-tracker@v1.0.8/fragment-tracker.js" async></script>
 ```
 
 ## 📊 What Gets Tracked
@@ -71,11 +71,13 @@ Check the [GitHub releases](https://github.com/ivbran/citationtrack-tracker/rele
 
 - ✅ No personal data collected
 - ✅ No cookies used
+- ✅ Respects Do Not Track (DNT) header
 - ✅ API key validates through server
 - ✅ All tracking is opt-in (requires API key)
 
 ## 📝 Version History
 
+- **v1.0.8** - Added Do Not Track (DNT) header support
 - **v1.0.7** - Added data sanitization for privacy protection
 - **v1.0.0** - Initial release with Navigation Timing API support
 
