@@ -1,7 +1,7 @@
 /**
  * CitationTrack Fragment Tracker
  * Lightweight script to track citations and text fragments
- * Version: 1.0.0
+ * Version: 1.0.3
  */
 (function() {
   'use strict';
@@ -97,7 +97,8 @@
         return null;
       }
       
-      // Extract the text portion
+      // Extract the text portion (handle multiple fragments: &text=...)
+      // For now, we'll track the first fragment only
       var match = hash.match(/:~:text=([^&]+)/);
       if (!match || !match[1]) {
         log('Failed to match text fragment pattern');
@@ -107,19 +108,77 @@
       // Decode URL-encoded characters
       var fragment = decodeURIComponent(match[1]);
       
-      // Remove prefix/suffix markers (- at start/end)
-      fragment = fragment.replace(/^-+/, '').replace(/-+$/, '');
+      // Parse full syntax: [prefix-,]textStart[,textEnd][,-suffix]
+      // Examples:
+      // - "hello" -> textStart = "hello"
+      // - "hello,world" -> textStart = "hello", textEnd = "world"
+      // - "avoid-,use" -> prefix = "avoid", textStart = "use"
+      // - "use,-ing" -> textStart = "use", suffix = "ing"
+      // - "prefix-,start,end,-suffix" -> full syntax
       
-      // Clean up text range markers ONLY if they look like range syntax
-      // Range syntax: "prefix-,start,end,-suffix"
-      // Real commas in text: "hello, world"
-      // Only split on comma if followed by a dash (indicating range end marker)
-      if (fragment.indexOf(',-') !== -1) {
-        fragment = fragment.split(',-')[0];
+      var textStart = null;
+      var textEnd = null;
+      var prefix = null;
+      var suffix = null;
+      
+      // Step 1: Extract prefix if present (format: "prefix-,rest")
+      var prefixMatch = fragment.match(/^([^,]+?)-,(.+)$/);
+      if (prefixMatch) {
+        prefix = prefixMatch[1];
+        fragment = prefixMatch[2];
+        log('Found prefix:', prefix);
       }
       
-      log('✅ Text fragment detected:', fragment);
-      return fragment || null;
+      // Step 2: Extract suffix if present (format: "rest,-suffix")
+      // Must check for suffix BEFORE checking range (to avoid false positives)
+      var suffixMatch = fragment.match(/^(.+?),-([^,]+)$/);
+      if (suffixMatch) {
+        suffix = suffixMatch[2];
+        fragment = suffixMatch[1]; // Remaining part after removing suffix
+        log('Found suffix:', suffix);
+      }
+      
+      // Step 3: Extract range if present (format: "textStart,textEnd")
+      // Only check for comma if it's followed by something (not end of string)
+      // But be careful - commas in text are valid!
+      // Range syntax typically: "start,end" where end is not followed by another comma
+      var commaIndex = fragment.indexOf(',');
+      if (commaIndex !== -1 && commaIndex < fragment.length - 1) {
+        // Check if this looks like range syntax (not just comma in text)
+        // Range: "start,end" where we can reasonably split
+        // Simple heuristic: if comma is not the last char, likely a range
+        var parts = fragment.split(',', 2); // Split only first comma
+        if (parts.length === 2 && parts[1].length > 0) {
+          // Only treat as range if second part doesn't start with a dash (which would be suffix)
+          // And if it's reasonably short (not a continuation of text with comma)
+          if (!parts[1].startsWith('-')) {
+            textStart = parts[0];
+            textEnd = parts[1];
+            log('Found range:', textStart, 'to', textEnd);
+          } else {
+            // This was actually suffix, but we already handled it above
+            textStart = fragment;
+          }
+        } else {
+          textStart = fragment;
+        }
+      } else {
+        // No comma, so this is just textStart
+        textStart = fragment;
+      }
+      
+      // Final extraction: Use full range if available (better for SEO/CEO/website owners)
+      // Store as "textStart...textEnd" if range exists, otherwise just textStart
+      var finalFragment = textStart;
+      if (textEnd) {
+        // Track full range for better SEO value (shows what was actually cited)
+        // Format: "start...end" (e.g., "hello...world")
+        finalFragment = textStart + '...' + textEnd;
+        log('Range detected, tracking full range:', finalFragment);
+      }
+      
+      log('✅ Text fragment detected:', finalFragment, prefix ? '(prefix: ' + prefix + ')' : '', suffix ? '(suffix: ' + suffix + ')' : '');
+      return finalFragment || null;
       
     } catch (e) {
       log('Error parsing text fragment:', e);
@@ -178,16 +237,41 @@
   }
   
   /**
+   * Reconstruct full URL with original text fragment
+   * This allows users to click the URL and see the highlighted text
+   */
+  function getTargetUrlWithFragment(originalHash) {
+    try {
+      // Get base URL without hash
+      var baseUrl = window.location.href.split('#')[0];
+      
+      // Reconstruct with original fragment
+      if (originalHash && originalHash.indexOf(':~:text=') !== -1) {
+        return baseUrl + originalHash;
+      }
+      
+      // Fallback to current href
+      return window.location.href;
+    } catch (e) {
+      log('Error reconstructing URL:', e);
+      return window.location.href;
+    }
+  }
+  
+  /**
    * Send tracking event to backend
    */
-  function sendTrackingEvent(fragment) {
+  function sendTrackingEvent(fragment, originalHash) {
     var trafficInfo = detectTrafficSource(document.referrer);
+    
+    // Reconstruct full URL with fragment for clickable link
+    var targetUrlWithFragment = getTargetUrlWithFragment(originalHash);
     
     var payload = {
       api_key: config.apiKey,
-      fragment_text: fragment,
+      fragment_text: fragment, // Parsed text for searchability
       referrer_url: document.referrer || '',
-      target_url: window.location.href,
+      target_url: targetUrlWithFragment, // Full URL with fragment (clickable!)
       user_agent: navigator.userAgent,
       metadata: {
         traffic_source: trafficInfo.source,
@@ -270,13 +354,47 @@
       log('Cannot read sessionStorage:', e);
     }
     
+    // Get original hash before parsing (for full URL reconstruction)
+    var originalHash = null;
+    try {
+      // Try Navigation Timing API first (preserves original fragment)
+      var entries = performance.getEntries();
+      var navigationEntry = null;
+      for (var i = 0; i < entries.length; i++) {
+        if (entries[i].entryType === 'navigation') {
+          navigationEntry = entries[i];
+          break;
+        }
+      }
+      
+      if (navigationEntry && navigationEntry.name) {
+        try {
+          var originalUrl = new URL(navigationEntry.name);
+          originalHash = originalUrl.hash;
+          log('Original hash from Navigation Timing API:', originalHash);
+        } catch (e) {
+          log('Failed to parse navigation entry URL:', e);
+        }
+      }
+      
+      // Fallback to window.location.hash or preserved fragment
+      if (!originalHash || originalHash.indexOf(':~:text=') === -1) {
+        originalHash = window.location.hash || window.__preservedTextFragment || null;
+        log('Using fallback hash:', originalHash);
+      }
+    } catch (e) {
+      log('Error getting original hash:', e);
+      originalHash = window.location.hash || null;
+    }
+    
     // Check for text fragment IMMEDIATELY
     var fragment = getTextFragment();
     
     if (fragment) {
       log('✅ Found text fragment:', fragment);
+      log('Original hash preserved:', originalHash);
       log('Sending tracking event...');
-      sendTrackingEvent(fragment);
+      sendTrackingEvent(fragment, originalHash);
     } else {
       log('❌ No text fragment detected, skipping tracking');
     }
