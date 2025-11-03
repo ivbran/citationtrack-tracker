@@ -1,7 +1,7 @@
 /**
  * CitationTrack Fragment Tracker
  * Lightweight script to track citations and text fragments
- * Version: 1.0.3
+ * Version: 1.0.4
  */
 (function() {
   'use strict';
@@ -97,88 +97,112 @@
         return null;
       }
       
-      // Extract the text portion (handle multiple fragments: &text=...)
-      // For now, we'll track the first fragment only
-      var match = hash.match(/:~:text=([^&]+)/);
-      if (!match || !match[1]) {
+      // Extract ALL text fragments (handle multiple: &text=...)
+      // Support: #:~:text=fragment1&text=fragment2&text=fragment3
+      var fragments = [];
+      // Match both :~:text= (first fragment) and &text= (subsequent fragments)
+      // The pattern matches: :~:text=... or &text=...
+      var regex = /(?::~:text=|&text=)([^&]+)/g;
+      var match;
+      
+      // Use exec() instead of matchAll() for better browser compatibility
+      while ((match = regex.exec(hash)) !== null) {
+        if (match && match[1]) {
+          fragments.push(match[1]); // Store encoded fragment for parsing
+        }
+      }
+      
+      if (fragments.length === 0) {
         log('Failed to match text fragment pattern');
         return null;
       }
       
-      // Decode URL-encoded characters
-      var fragment = decodeURIComponent(match[1]);
+      log('Found', fragments.length, 'fragment(s)');
       
-      // Parse full syntax: [prefix-,]textStart[,textEnd][,-suffix]
-      // Examples:
-      // - "hello" -> textStart = "hello"
-      // - "hello,world" -> textStart = "hello", textEnd = "world"
-      // - "avoid-,use" -> prefix = "avoid", textStart = "use"
-      // - "use,-ing" -> textStart = "use", suffix = "ing"
-      // - "prefix-,start,end,-suffix" -> full syntax
-      
-      var textStart = null;
-      var textEnd = null;
-      var prefix = null;
-      var suffix = null;
-      
-      // Step 1: Extract prefix if present (format: "prefix-,rest")
-      var prefixMatch = fragment.match(/^([^,]+?)-,(.+)$/);
-      if (prefixMatch) {
-        prefix = prefixMatch[1];
-        fragment = prefixMatch[2];
-        log('Found prefix:', prefix);
-      }
-      
-      // Step 2: Extract suffix if present (format: "rest,-suffix")
-      // Must check for suffix BEFORE checking range (to avoid false positives)
-      var suffixMatch = fragment.match(/^(.+?),-([^,]+)$/);
-      if (suffixMatch) {
-        suffix = suffixMatch[2];
-        fragment = suffixMatch[1]; // Remaining part after removing suffix
-        log('Found suffix:', suffix);
-      }
-      
-      // Step 3: Extract range if present (format: "textStart,textEnd")
-      // Only check for comma if it's followed by something (not end of string)
-      // But be careful - commas in text are valid!
-      // Range syntax typically: "start,end" where end is not followed by another comma
-      var commaIndex = fragment.indexOf(',');
-      if (commaIndex !== -1 && commaIndex < fragment.length - 1) {
-        // Check if this looks like range syntax (not just comma in text)
-        // Range: "start,end" where we can reasonably split
-        // Simple heuristic: if comma is not the last char, likely a range
-        var parts = fragment.split(',', 2); // Split only first comma
-        if (parts.length === 2 && parts[1].length > 0) {
-          // Only treat as range if second part doesn't start with a dash (which would be suffix)
-          // And if it's reasonably short (not a continuation of text with comma)
-          if (!parts[1].startsWith('-')) {
-            textStart = parts[0];
-            textEnd = parts[1];
-            log('Found range:', textStart, 'to', textEnd);
+      // Parse all fragments and extract text from each
+      var parsedFragments = [];
+      for (var i = 0; i < fragments.length; i++) {
+        // Decode URL-encoded characters
+        var fragment = decodeURIComponent(fragments[i]);
+        
+        // Parse full syntax: [prefix-,]textStart[,textEnd][,-suffix]
+        // Examples:
+        // - "hello" -> textStart = "hello"
+        // - "hello,world" -> textStart = "hello", textEnd = "world"
+        // - "avoid-,use" -> prefix = "avoid", textStart = "use"
+        // - "use,-ing" -> textStart = "use", suffix = "ing"
+        // - "prefix-,start,end,-suffix" -> full syntax
+        
+        var textStart = null;
+        var textEnd = null;
+        var prefix = null;
+        var suffix = null;
+        
+        // Step 1: Extract prefix if present (format: "prefix-,rest")
+        var prefixMatch = fragment.match(/^([^,]+?)-,(.+)$/);
+        if (prefixMatch) {
+          prefix = prefixMatch[1];
+          fragment = prefixMatch[2];
+          log('Found prefix:', prefix);
+        }
+        
+        // Step 2: Extract suffix if present (format: "rest,-suffix")
+        // Must check for suffix BEFORE checking range (to avoid false positives)
+        var suffixMatch = fragment.match(/^(.+?),-([^,]+)$/);
+        if (suffixMatch) {
+          suffix = suffixMatch[2];
+          fragment = suffixMatch[1]; // Remaining part after removing suffix
+          log('Found suffix:', suffix);
+        }
+        
+        // Step 3: Extract range if present (format: "textStart,textEnd")
+        // Only check for comma if it's followed by something (not end of string)
+        // But be careful - commas in text are valid!
+        // Range syntax typically: "start,end" where end is not followed by another comma
+        var commaIndex = fragment.indexOf(',');
+        if (commaIndex !== -1 && commaIndex < fragment.length - 1) {
+          // Check if this looks like range syntax (not just comma in text)
+          // Range: "start,end" where we can reasonably split
+          // Simple heuristic: if comma is not the last char, likely a range
+          var parts = fragment.split(',', 2); // Split only first comma
+          if (parts.length === 2 && parts[1].length > 0) {
+            // Only treat as range if second part doesn't start with a dash (which would be suffix)
+            // And if it's reasonably short (not a continuation of text with comma)
+            if (!parts[1].startsWith('-')) {
+              textStart = parts[0];
+              textEnd = parts[1];
+              log('Found range:', textStart, 'to', textEnd);
+            } else {
+              // This was actually suffix, but we already handled it above
+              textStart = fragment;
+            }
           } else {
-            // This was actually suffix, but we already handled it above
             textStart = fragment;
           }
         } else {
+          // No comma, so this is just textStart
           textStart = fragment;
         }
-      } else {
-        // No comma, so this is just textStart
-        textStart = fragment;
+        
+        // Final extraction: Use full range if available (better for SEO/CEO/website owners)
+        // Store as "textStart...textEnd" if range exists, otherwise just textStart
+        var finalFragment = textStart;
+        if (textEnd) {
+          // Track full range for better SEO value (shows what was actually cited)
+          // Format: "start...end" (e.g., "hello...world")
+          finalFragment = textStart + '...' + textEnd;
+          log('Range detected, tracking full range:', finalFragment);
+        }
+        
+        parsedFragments.push(finalFragment);
+        log('✅ Fragment', (i + 1) + ':', finalFragment, prefix ? '(prefix: ' + prefix + ')' : '', suffix ? '(suffix: ' + suffix + ')' : '');
       }
       
-      // Final extraction: Use full range if available (better for SEO/CEO/website owners)
-      // Store as "textStart...textEnd" if range exists, otherwise just textStart
-      var finalFragment = textStart;
-      if (textEnd) {
-        // Track full range for better SEO value (shows what was actually cited)
-        // Format: "start...end" (e.g., "hello...world")
-        finalFragment = textStart + '...' + textEnd;
-        log('Range detected, tracking full range:', finalFragment);
-      }
-      
-      log('✅ Text fragment detected:', finalFragment, prefix ? '(prefix: ' + prefix + ')' : '', suffix ? '(suffix: ' + suffix + ')' : '');
-      return finalFragment || null;
+      // Combine all fragments (comma-separated) for tracking
+      // Example: "hello" or "hello...world" or "frag1, frag2" or "frag1...end1, frag2...end2"
+      var combinedFragment = parsedFragments.join(', ');
+      log('✅ All fragments combined:', combinedFragment);
+      return combinedFragment || null;
       
     } catch (e) {
       log('Error parsing text fragment:', e);
@@ -317,7 +341,8 @@
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'apikey': config.supabaseAnonKey // Required by Supabase Edge Functions
+        'apikey': config.supabaseAnonKey, // Required by Supabase Edge Functions
+        'Authorization': 'Bearer ' + config.supabaseAnonKey // Also try Authorization header
       },
       body: JSON.stringify(payload),
       keepalive: true,
@@ -325,10 +350,65 @@
     }).then(function(response) {
       if (response.ok) {
         log('Event sent successfully');
+        if (config.debug) {
+          response.json().then(function(data) {
+            console.log('[CitationTrack] Success:', data);
+          }).catch(function() {
+            console.log('[CitationTrack] Success (no JSON response)');
+          });
+        }
       } else {
-        log('Event send failed:', response.status);
+        // Log detailed error for debugging
+        var status = response.status;
+        var statusText = response.statusText;
+        response.text().then(function(errorText) {
+          // Handle empty response
+          if (!errorText || errorText.trim() === '') {
+            console.error('[CitationTrack] Request failed:', {
+              status: status,
+              statusText: statusText,
+              message: 'Empty error response from server',
+              endpoint: config.endpoint
+            });
+            return;
+          }
+          
+          try {
+            var errorJson = JSON.parse(errorText);
+            console.error('[CitationTrack] Request failed:', {
+              status: status,
+              statusText: statusText,
+              code: errorJson.code || 'unknown',
+              message: errorJson.message || errorJson.error || 'Unknown error',
+              fullError: errorJson
+            });
+          } catch (e) {
+            // If parsing fails, log the raw text
+            console.error('[CitationTrack] Request failed:', {
+              status: status,
+              statusText: statusText,
+              errorText: errorText,
+              parseError: e.message,
+              endpoint: config.endpoint
+            });
+          }
+          log('Event send failed:', 'Status ' + status + ': ' + errorText);
+        }).catch(function(err) {
+          console.error('[CitationTrack] Failed to read error response:', err);
+          console.error('[CitationTrack] Request failed:', {
+            status: status,
+            statusText: statusText,
+            readError: err.message,
+            endpoint: config.endpoint
+          });
+        });
       }
     }).catch(function(error) {
+      console.error('[CitationTrack] Network error:', {
+        message: error.message,
+        stack: error.stack,
+        endpoint: config.endpoint
+      });
       log('Event send error:', error);
     });
   }
@@ -343,7 +423,7 @@
     log('Current Hash:', window.location.hash);
     log('Document readyState:', document.readyState);
     log('Document Referrer:', document.referrer);
-    log('Preservation script ran?:', window.__preservedTextFragment);
+    log('Preservation script ran?:', window.__preservationScriptRan);
     log('Preserved fragment global?:', window.__preservedTextFragment);
     
     // Also check sessionStorage directly
@@ -405,4 +485,3 @@
   log('Script loaded, starting init...');
   init();
 })();
-
