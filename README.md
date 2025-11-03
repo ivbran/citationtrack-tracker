@@ -59,15 +59,6 @@ Check the [GitHub releases](https://github.com/ivbran/citationtrack-tracker/rele
 <script src="https://cdn.jsdelivr.net/gh/ivbran/citationtrack-tracker@v1.0.7/fragment-tracker.js" async></script>
 ```
 
-### Custom Endpoint (Enterprise):
-```html
-<script>
-  window.CITATIONTRACK_API_KEY = 'your_api_key_here';
-  window.CITATIONTRACK_ENDPOINT = 'https://your-custom-endpoint.com/track';
-</script>
-<script src="https://cdn.jsdelivr.net/gh/ivbran/citationtrack-tracker@v1.0.7/fragment-tracker.js" async></script>
-```
-
 ## 📊 What Gets Tracked
 
 - Text fragments from AI citations
