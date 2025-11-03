@@ -262,6 +262,91 @@
   }
   
   /**
+   * Sanitize fragment text to remove sensitive patterns
+   * Since this is client-side code, the logic is visible - that's OK, it's defensive
+   * Server-side sanitization provides additional protection
+   */
+  function sanitizeFragmentText(text) {
+    if (!text || typeof text !== 'string') {
+      return text;
+    }
+    
+    var sanitized = text;
+    
+    // Remove common password patterns (case-insensitive)
+    sanitized = sanitized.replace(/\bpassword[=:]\s*\S+/gi, '[REDACTED]');
+    sanitized = sanitized.replace(/\bpasswd[=:]\s*\S+/gi, '[REDACTED]');
+    sanitized = sanitized.replace(/\bpwd[=:]\s*\S+/gi, '[REDACTED]');
+    
+    // Remove API key patterns
+    sanitized = sanitized.replace(/\b(api[_-]?key|apikey)[=:]\s*\S+/gi, '[REDACTED]');
+    sanitized = sanitized.replace(/\b(secret|token|auth)[=:]\s*\S+/gi, '[REDACTED]');
+    
+    // Remove credit card patterns (basic)
+    sanitized = sanitized.replace(/\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/g, '[REDACTED]');
+    
+    // Remove SSN patterns (US format)
+    sanitized = sanitized.replace(/\b\d{3}-\d{2}-\d{4}\b/g, '[REDACTED]');
+    
+    // Remove session/token patterns in text
+    sanitized = sanitized.replace(/session[=:]\s*[a-zA-Z0-9_-]+/gi, '[REDACTED]');
+    sanitized = sanitized.replace(/token[=:]\s*[a-zA-Z0-9_-]+/gi, '[REDACTED]');
+    
+    return sanitized;
+  }
+  
+  /**
+   * Sanitize referrer URL by removing sensitive query parameters
+   * Keeps the URL structure but removes tokens/keys
+   */
+  function sanitizeReferrerUrl(url) {
+    if (!url || typeof url !== 'string') {
+      return url;
+    }
+    
+    try {
+      // Only sanitize if it's a full URL with query parameters
+      if (url.indexOf('?') === -1 && url.indexOf('&') === -1) {
+        return url; // No query params, return as-is
+      }
+      
+      var urlObj;
+      try {
+        urlObj = new URL(url);
+      } catch (e) {
+        // If URL parsing fails, try basic sanitization
+        return url.replace(/[?&](token|session|key|auth|api_key|secret|password)=[^&\s]+/gi, function(match) {
+          return match.split('=')[0] + '=[REDACTED]';
+        });
+      }
+      
+      // List of sensitive query parameter names
+      var sensitiveParams = [
+        'token', 'session', 'sessionid', 'session_id',
+        'key', 'api_key', 'apikey', 'access_key',
+        'auth', 'authorization', 'auth_token',
+        'secret', 'password', 'pwd', 'passwd',
+        'id', 'user_id', 'uid', 'userid',
+        'csrf', 'csrf_token', 'csrf-token',
+        'oauth_token', 'oauth_secret'
+      ];
+      
+      // Remove sensitive parameters
+      sensitiveParams.forEach(function(param) {
+        urlObj.searchParams.delete(param);
+      });
+      
+      return urlObj.toString();
+    } catch (e) {
+      log('Error sanitizing referrer URL:', e);
+      // Fallback: basic regex replacement
+      return url.replace(/[?&](token|session|key|auth)=[^&\s]+/gi, function(match) {
+        return match.split('=')[0] + '=[REDACTED]';
+      });
+    }
+  }
+  
+  /**
    * Reconstruct full URL with original text fragment
    * This allows users to click the URL and see the highlighted text
    */
@@ -292,10 +377,16 @@
     // Reconstruct full URL with fragment for clickable link
     var targetUrlWithFragment = getTargetUrlWithFragment(originalHash);
     
+    // Sanitize fragment text to remove sensitive patterns
+    var sanitizedFragment = sanitizeFragmentText(fragment);
+    
+    // Sanitize referrer URL to remove sensitive query parameters
+    var sanitizedReferrer = sanitizeReferrerUrl(document.referrer || '');
+    
     var payload = {
       api_key: config.apiKey,
-      fragment_text: fragment, // Parsed text for searchability
-      referrer_url: document.referrer || '',
+      fragment_text: sanitizedFragment, // Sanitized before sending
+      referrer_url: sanitizedReferrer, // Sanitized before sending
       target_url: targetUrlWithFragment, // Full URL with fragment (clickable!)
       user_agent: navigator.userAgent,
       metadata: {
