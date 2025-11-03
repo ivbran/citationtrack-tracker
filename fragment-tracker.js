@@ -1,7 +1,7 @@
 /**
  * CitationTrack Fragment Tracker
  * Lightweight script to track citations and text fragments
- * Version: 1.0.5
+ * Version: 1.0.6
  */
 (function() {
   'use strict';
@@ -185,14 +185,13 @@
           textStart = fragment.trim();
         }
         
-        // Final extraction: Use full range if available (better for SEO/CEO/website owners)
-        // Store as "textStart...textEnd" if range exists, otherwise just textStart
+        // Final extraction: Track just the start text (simpler, more reliable)
+        // For ranges like "hello,world", we track just "hello" since we can't
+        // get the actual highlighted text that appears between them
         var finalFragment = textStart;
         if (textEnd) {
-          // Track full range for better SEO value (shows what was actually cited)
-          // Format: "start...end" (e.g., "hello...world")
-          finalFragment = textStart + '...' + textEnd;
-          log('Range detected, tracking full range:', finalFragment);
+          // Note: Range detected but tracking only start text
+          log('Range detected:', textStart, 'to', textEnd, '- tracking start text only:', finalFragment);
         }
         
         parsedFragments.push(finalFragment);
