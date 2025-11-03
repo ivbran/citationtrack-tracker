@@ -1,7 +1,7 @@
 /**
  * CitationTrack Fragment Tracker
  * Lightweight script to track citations and text fragments
- * Version: 1.0.4
+ * Version: 1.0.5
  */
 (function() {
   'use strict';
@@ -169,19 +169,20 @@
             // Only treat as range if second part doesn't start with a dash (which would be suffix)
             // And if it's reasonably short (not a continuation of text with comma)
             if (!parts[1].startsWith('-')) {
-              textStart = parts[0];
-              textEnd = parts[1];
+              // Trim whitespace from both parts to handle URL-encoded spaces
+              textStart = parts[0].trim();
+              textEnd = parts[1].trim();
               log('Found range:', textStart, 'to', textEnd);
             } else {
               // This was actually suffix, but we already handled it above
-              textStart = fragment;
+              textStart = fragment.trim();
             }
           } else {
-            textStart = fragment;
+            textStart = fragment.trim();
           }
         } else {
           // No comma, so this is just textStart
-          textStart = fragment;
+          textStart = fragment.trim();
         }
         
         // Final extraction: Use full range if available (better for SEO/CEO/website owners)
