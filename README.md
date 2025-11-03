@@ -7,13 +7,12 @@ Lightweight JavaScript tracker for tracking text fragments and AI citations on y
 Add this script to your website's `<head>` section:
 
 ```html
-<script src="https://cdn.jsdelivr.net/gh/YOUR_USERNAME/citationtrack-tracker@v1.0.0/fragment-tracker.js" 
+<script src="https://cdn.jsdelivr.net/gh/ivbran/citationtrack-tracker@v1.0.7/fragment-tracker.js" 
         data-api-key="YOUR_API_KEY" 
         async></script>
 ```
 
 Replace:
-- `YOUR_USERNAME` with your GitHub username (or use CitationTrack's CDN when available)
 - `YOUR_API_KEY` with your CitationTrack API key from the dashboard
 
 ## 🔑 Get Your API Key
@@ -36,17 +35,17 @@ This tracker is distributed via [jsDelivr CDN](https://www.jsdelivr.com) for fas
 
 **CDN URL:**
 ```
-https://cdn.jsdelivr.net/gh/YOUR_USERNAME/citationtrack-tracker@VERSION/fragment-tracker.js
+https://cdn.jsdelivr.net/gh/ivbran/citationtrack-tracker@v1.0.7/fragment-tracker.js
 ```
 
 **Latest version:**
-Replace `@VERSION` with latest tag (e.g., `@v1.0.0`)
+Check the [GitHub releases](https://github.com/ivbran/citationtrack-tracker/releases) for the latest version tag, or use `@latest` for automatic updates.
 
 ## 🔧 Configuration
 
 ### Basic Usage (with data attribute):
 ```html
-<script src="https://cdn.jsdelivr.net/gh/YOUR_USERNAME/citationtrack-tracker@v1.0.0/fragment-tracker.js" 
+<script src="https://cdn.jsdelivr.net/gh/ivbran/citationtrack-tracker@v1.0.7/fragment-tracker.js" 
         data-api-key="your_api_key_here" 
         async></script>
 ```
@@ -57,7 +56,7 @@ Replace `@VERSION` with latest tag (e.g., `@v1.0.0`)
   window.CITATIONTRACK_API_KEY = 'your_api_key_here';
   window.CITATIONTRACK_DEBUG = false; // Enable debug logging
 </script>
-<script src="https://cdn.jsdelivr.net/gh/YOUR_USERNAME/citationtrack-tracker@v1.0.0/fragment-tracker.js" async></script>
+<script src="https://cdn.jsdelivr.net/gh/ivbran/citationtrack-tracker@v1.0.7/fragment-tracker.js" async></script>
 ```
 
 ### Custom Endpoint (Enterprise):
@@ -66,7 +65,7 @@ Replace `@VERSION` with latest tag (e.g., `@v1.0.0`)
   window.CITATIONTRACK_API_KEY = 'your_api_key_here';
   window.CITATIONTRACK_ENDPOINT = 'https://your-custom-endpoint.com/track';
 </script>
-<script src="https://cdn.jsdelivr.net/gh/YOUR_USERNAME/citationtrack-tracker@v1.0.0/fragment-tracker.js" async></script>
+<script src="https://cdn.jsdelivr.net/gh/ivbran/citationtrack-tracker@v1.0.7/fragment-tracker.js" async></script>
 ```
 
 ## 📊 What Gets Tracked
@@ -86,6 +85,7 @@ Replace `@VERSION` with latest tag (e.g., `@v1.0.0`)
 
 ## 📝 Version History
 
+- **v1.0.7** - Added data sanitization for privacy protection
 - **v1.0.0** - Initial release with Navigation Timing API support
 
 ## 📄 License
@@ -98,5 +98,5 @@ Copyright (c) 2025 CitationTrack.com - All Rights Reserved
 
 - Documentation: [CitationTrack.com/docs](https://citationtrack.com/docs)
 - Support: contact@citationtrack.com
-- Issues: [GitHub Issues](https://github.com/YOUR_USERNAME/citationtrack-tracker/issues)
+- Issues: [GitHub Issues](https://github.com/ivbran/citationtrack-tracker/issues)
 
