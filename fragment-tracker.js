@@ -1,7 +1,7 @@
 /**
  * CitationTrack Fragment Tracker
  * Lightweight script to track citations and text fragments
- * Version: 1.0.8
+ * Version: 1.0.9
  */
 (function() {
   'use strict';
@@ -291,6 +291,13 @@
     // Remove session/token patterns in text
     sanitized = sanitized.replace(/session[=:]\s*[a-zA-Z0-9_-]+/gi, '[REDACTED]');
     sanitized = sanitized.replace(/token[=:]\s*[a-zA-Z0-9_-]+/gi, '[REDACTED]');
+    
+    // Remove JWT tokens (three base64 parts separated by dots)
+    // Pattern: eyJ...base64... . eyJ...base64... . ...base64...
+    sanitized = sanitized.replace(/\beyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, '[REDACTED]');
+    
+    // Remove email addresses (PII protection)
+    sanitized = sanitized.replace(/\b[\w\.-]+@[\w\.-]+\.\w+\b/g, '[REDACTED]');
     
     return sanitized;
   }
