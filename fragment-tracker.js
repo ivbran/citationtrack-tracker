@@ -1,7 +1,7 @@
 /**
  * CitationTrack Fragment Tracker
  * Lightweight script to track citations and text fragments
- * Version: 2.0.0 - Domain-based identification (Simple Analytics approach)
+ * Version: 2.0.1 - Security fix: Event dispatch after backend validation
  */
 (function() {
   'use strict';
