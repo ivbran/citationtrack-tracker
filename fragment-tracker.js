@@ -1,7 +1,7 @@
 /**
  * CitationTrack Fragment Tracker
  * Lightweight script to track citations and text fragments
- * Version: 1.0.9
+ * Version: 1.0.10
  */
 (function() {
   'use strict';
