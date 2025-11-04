@@ -13,11 +13,11 @@ Add this script to your website's `<head>` section:
 ```
 
 Replace:
-- `YOUR_API_KEY` with your CitationTrack API key from the dashboard
+- `YOUR_API_KEY` with your CitedHQ API key from the dashboard
 
 ## 🔑 Get Your API Key
 
-1. Sign up at [CitationTrack.com](https://citationtrack.com)
+1. Sign up at [CitedHQ.com](https://CitedHQ.com)
 2. Add your website domain
 3. Copy your API key from the dashboard
 
@@ -26,7 +26,7 @@ Replace:
 The tracker automatically:
 - ✅ Detects text fragments from AI citations (`#:~:text=...`)
 - ✅ Identifies traffic source (Google AI, ChatGPT, Perplexity, etc.)
-- ✅ Sends tracking events to CitationTrack analytics
+- ✅ Sends tracking events to CitedHQ analytics
 - ✅ Works with Navigation Timing API for maximum reliability
 
 ## 🌐 CDN
@@ -87,11 +87,11 @@ Check the [GitHub releases](https://github.com/ivbran/citationtrack-tracker/rele
 
 This code is **NOT open source**. See [LICENSE](LICENSE) for details.
 
-Copyright (c) 2025 CitationTrack.com - All Rights Reserved
+Copyright (c) 2025 CitedHQ.com - All Rights Reserved
 
 ## 🆘 Support
 
-- Documentation: [CitationTrack.com/docs](https://citationtrack.com/docs)
-- Support: contact@citationtrack.com
+- Documentation: [CitedHQ.com/docs](https://CitedHQ.com/docs)
+- Support: contact@citedhq.com
 - Issues: [GitHub Issues](https://github.com/ivbran/citationtrack-tracker/issues)
 

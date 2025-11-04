@@ -330,27 +330,8 @@
     
     log('Sending tracking event:', payload);
     
-    if (typeof window !== 'undefined' && window.dispatchEvent) {
-      try {
-        var event = new CustomEvent('citationtrack:tracked', {
-          detail: payload,
-          bubbles: true
-        });
-        var dispatched = window.dispatchEvent(event);
-        log('Custom event dispatched, result:', dispatched);
-        window.__lastCitationTrackEvent = payload;
-        
-        console.log('[FragmentTracker] ✅ EVENT DISPATCHED:', {
-          eventName: 'citationtrack:tracked',
-          fragmentText: payload.fragment_text,
-          dispatched: dispatched,
-          timestamp: new Date().toISOString()
-        });
-      } catch (e) {
-        log('Failed to dispatch custom event:', e);
-      }
-    }
-    
+    // SECURITY: Event only fires AFTER successful backend validation
+    // This prevents bypassing our servers by copying code and removing backend call
     fetch(config.endpoint, {
       method: 'POST',
       headers: {
@@ -364,6 +345,30 @@
     }).then(function(response) {
       if (response.ok) {
         log('Event sent successfully');
+        
+        // Only fire citationtrack:tracked event AFTER successful backend validation
+        // This ensures domain is registered and account is active
+        if (typeof window !== 'undefined' && window.dispatchEvent) {
+          try {
+            var event = new CustomEvent('citationtrack:tracked', {
+              detail: payload,
+              bubbles: true
+            });
+            var dispatched = window.dispatchEvent(event);
+            log('Custom event dispatched, result:', dispatched);
+            window.__lastCitationTrackEvent = payload;
+            
+            console.log('[FragmentTracker] ✅ EVENT DISPATCHED:', {
+              eventName: 'citationtrack:tracked',
+              fragmentText: payload.fragment_text,
+              dispatched: dispatched,
+              timestamp: new Date().toISOString()
+            });
+          } catch (e) {
+            log('Failed to dispatch custom event:', e);
+          }
+        }
+        
         if (config.debug) {
           response.json().then(function(data) {
             console.log('[CitationTrack] Success:', data);
