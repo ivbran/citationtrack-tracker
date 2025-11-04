@@ -1,30 +1,25 @@
 /**
  * CitationTrack Fragment Tracker
  * Lightweight script to track citations and text fragments
- * Version: 1.0.11
+ * Version: 2.0.0 - Domain-based identification (Simple Analytics approach)
  */
 (function() {
   'use strict';
   
   var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl4b3Z0cGpvenp6YmhjeGRleXN6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIxMDA5MDAsImV4cCI6MjA3NzY3NjkwMH0.TRnEkDP4aDd-k18Nx0WCmN2OZLZx6COEEAVr612A6ck';
   
-  var scriptTag = document.currentScript || document.querySelector('script[data-api-key]');
-  var apiKey = scriptTag ? scriptTag.getAttribute('data-api-key') : null;
+  var scriptTag = document.currentScript || document.querySelector('script');
   
   var supabaseAnonKeyFromAttr = scriptTag ? scriptTag.getAttribute('data-supabase-anon-key') : null;
   var supabaseAnonKey = supabaseAnonKeyFromAttr || window.CITATIONTRACK_SUPABASE_ANON_KEY || SUPABASE_ANON_KEY;
   
+  // Domain is extracted server-side from Origin/Referer headers (Simple Analytics approach)
+  // No need to extract domain client-side - browser automatically sends headers
   var config = {
-    apiKey: apiKey,
     endpoint: (window.CITATIONTRACK_ENDPOINT || 'https://yxovtpjozzzbhcxdeysz.supabase.co/functions/v1/track'),
     debug: window.CITATIONTRACK_DEBUG || false,
     supabaseAnonKey: supabaseAnonKey
   };
-  
-  if (!config.apiKey) {
-    console.error('[CitationTrack] Error: API key not provided. Add data-api-key attribute to script tag.');
-    return;
-  }
   
   function log(message, data) {
     if (config.debug) {
@@ -307,12 +302,21 @@
     var sanitizedFragment = sanitizeFragmentText(fragment);
     var sanitizedReferrer = sanitizeReferrerUrl(document.referrer || '');
     
+    // Extract hostname client-side (Simple Analytics approach - for convenience/logging)
+    // Server will validate it matches Origin/Referer headers (security)
+    var hostname = window.location.hostname.toLowerCase();
+    if (hostname.startsWith('www.')) {
+      hostname = hostname.substring(4);
+    }
+    
+    var timestamp = new Date().toISOString();
     var payload = {
-      api_key: config.apiKey,
+      hostname: hostname, // Sent from client for convenience, but validated server-side from headers
       fragment_text: sanitizedFragment,
       referrer_url: sanitizedReferrer,
       target_url: targetUrlWithFragment,
       user_agent: navigator.userAgent,
+      timestamp: timestamp, // Top-level timestamp for replay attack prevention
       metadata: {
         traffic_source: trafficInfo.source,
         ai_source: trafficInfo.ai,
@@ -320,7 +324,7 @@
         viewport_width: window.innerWidth,
         viewport_height: window.innerHeight,
         language: navigator.language,
-        timestamp: new Date().toISOString()
+        timestamp: timestamp // Also in metadata for backward compatibility
       }
     };
     
