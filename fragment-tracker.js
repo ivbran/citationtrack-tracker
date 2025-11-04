@@ -9,8 +9,7 @@
   var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl4b3Z0cGpvenp6YmhjeGRleXN6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIxMDA5MDAsImV4cCI6MjA3NzY3NjkwMH0.TRnEkDP4aDd-k18Nx0WCmN2OZLZx6COEEAVr612A6ck';
   
   var scriptTag = document.currentScript || document.querySelector('script[data-api-key]');
-  var apiKeyFromAttr = scriptTag ? scriptTag.getAttribute('data-api-key') : null;
-  var apiKey = apiKeyFromAttr || window.CITATIONTRACK_API_KEY || null;
+  var apiKey = scriptTag ? scriptTag.getAttribute('data-api-key') : null;
   
   var supabaseAnonKeyFromAttr = scriptTag ? scriptTag.getAttribute('data-supabase-anon-key') : null;
   var supabaseAnonKey = supabaseAnonKeyFromAttr || window.CITATIONTRACK_SUPABASE_ANON_KEY || SUPABASE_ANON_KEY;
@@ -23,7 +22,7 @@
   };
   
   if (!config.apiKey) {
-    console.error('[CitationTrack] Error: API key not provided. Add data-api-key attribute to script tag or set window.CITATIONTRACK_API_KEY');
+    console.error('[CitationTrack] Error: API key not provided. Add data-api-key attribute to script tag.');
     return;
   }
   

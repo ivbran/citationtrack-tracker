@@ -43,20 +43,21 @@ Check the [GitHub releases](https://github.com/ivbran/citationtrack-tracker/rele
 
 ## 🔧 Configuration
 
-### Basic Usage (with data attribute):
+### Basic Usage:
 ```html
-<script src="https://cdn.jsdelivr.net/gh/ivbran/citationtrack-tracker@v1.0.9/fragment-tracker.js" 
+<script src="https://cdn.jsdelivr.net/gh/ivbran/citationtrack-tracker@latest/fragment-tracker.js" 
         data-api-key="your_api_key_here" 
         async></script>
 ```
 
-### Advanced Usage (with global variable):
+### Enable Debug Logging:
 ```html
 <script>
-  window.CITATIONTRACK_API_KEY = 'your_api_key_here';
-  window.CITATIONTRACK_DEBUG = false; // Enable debug logging
+  window.CITATIONTRACK_DEBUG = true;
 </script>
-<script src="https://cdn.jsdelivr.net/gh/ivbran/citationtrack-tracker@v1.0.9/fragment-tracker.js" async></script>
+<script src="https://cdn.jsdelivr.net/gh/ivbran/citationtrack-tracker@latest/fragment-tracker.js" 
+        data-api-key="your_api_key_here" 
+        async></script>
 ```
 
 ## 📊 What Gets Tracked
