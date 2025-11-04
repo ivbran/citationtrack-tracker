@@ -6,12 +6,16 @@
 (function() {
   'use strict';
   
+  // Supabase anon key (public, safe to include in client-side code)
   var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl4b3Z0cGpvenp6YmhjeGRleXN6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIxMDA5MDAsImV4cCI6MjA3NzY3NjkwMH0.TRnEkDP4aDd-k18Nx0WCmN2OZLZx6COEEAVr612A6ck';
   
+  // Get API key from data attribute or global variable (required)
   var scriptTag = document.currentScript || document.querySelector('script[data-api-key]');
   var apiKeyFromAttr = scriptTag ? scriptTag.getAttribute('data-api-key') : null;
   var apiKey = apiKeyFromAttr || window.CITATIONTRACK_API_KEY || null;
   
+  // Get Supabase anon key from data attribute, window variable, or hardcoded fallback
+  // This is public and safe to include in client-side code - same for all users
   var supabaseAnonKeyFromAttr = scriptTag ? scriptTag.getAttribute('data-supabase-anon-key') : null;
   var supabaseAnonKey = supabaseAnonKeyFromAttr || window.CITATIONTRACK_SUPABASE_ANON_KEY || SUPABASE_ANON_KEY;
   
@@ -22,11 +26,13 @@
     supabaseAnonKey: supabaseAnonKey
   };
   
+  // Validate API key is provided
   if (!config.apiKey) {
     console.error('[CitationTrack] Error: API key not provided. Add data-api-key attribute to script tag or set window.CITATIONTRACK_API_KEY');
-    return;
+    return; // Exit early - don't track without API key
   }
   
+  // Logging helper
   function log(message, data) {
     if (config.debug) {
       console.log('[CitationTrack]', message, data || '');
@@ -34,10 +40,19 @@
   }
   
   /**
-   * Extract text fragment from URL
+   * Extract text fragment from URL using Navigation Timing API
+   * 
+   * IMPORTANT: Browsers strip the :~: fragment directive from window.location.hash
+   * for security reasons. To detect text fragments for analytics, we use the
+   * Navigation Timing API workaround from:
+   * https://web.dev/articles/text-fragments#obtaining_text_fragments_for_analytics_purposes
+   * 
+   * This is the official Google-recommended method for text fragment analytics.
    */
   function getTextFragment() {
     try {
+      // Method 1: Use Navigation Timing API (most reliable, official Google method)
+      // This gets the original navigation URL before browser strips :~:text=
       var navigationEntry = null;
       try {
         var entries = performance.getEntries();
@@ -54,6 +69,7 @@
       var hash = null;
       
       if (navigationEntry && navigationEntry.name) {
+        // Parse the original URL from Navigation Timing API
         try {
           var originalUrl = new URL(navigationEntry.name);
           hash = originalUrl.hash;
@@ -63,28 +79,36 @@
         }
       }
       
+      // Method 2: Fallback to window.location.hash (may not have :~:text=)
       if (!hash || hash.indexOf(':~:text=') === -1) {
         hash = window.location.hash;
         log('Using window.location.hash (fallback):', hash);
         
+        // Method 3: Check preserved fragment (if inline script ran first)
         if ((!hash || hash.indexOf(':~:text=') === -1) && window.__preservedTextFragment) {
           hash = window.__preservedTextFragment;
           log('Using preserved text fragment:', hash);
         }
       }
       
+      // Check if it contains a text fragment directive
       if (!hash || hash.indexOf(':~:text=') === -1) {
         log('No text fragment in URL');
         return null;
       }
       
+      // Extract ALL text fragments (handle multiple: &text=...)
+      // Support: #:~:text=fragment1&text=fragment2&text=fragment3
       var fragments = [];
+      // Match both :~:text= (first fragment) and &text= (subsequent fragments)
+      // The pattern matches: :~:text=... or &text=...
       var regex = /(?::~:text=|&text=)([^&]+)/g;
       var match;
       
+      // Use exec() instead of matchAll() for better browser compatibility
       while ((match = regex.exec(hash)) !== null) {
         if (match && match[1]) {
-          fragments.push(match[1]);
+          fragments.push(match[1]); // Store encoded fragment for parsing
         }
       }
       
@@ -95,15 +119,26 @@
       
       log('Found', fragments.length, 'fragment(s)');
       
+      // Parse all fragments and extract text from each
       var parsedFragments = [];
       for (var i = 0; i < fragments.length; i++) {
+        // Decode URL-encoded characters
         var fragment = decodeURIComponent(fragments[i]);
+        
+        // Parse full syntax: [prefix-,]textStart[,textEnd][,-suffix]
+        // Examples:
+        // - "hello" -> textStart = "hello"
+        // - "hello,world" -> textStart = "hello", textEnd = "world"
+        // - "avoid-,use" -> prefix = "avoid", textStart = "use"
+        // - "use,-ing" -> textStart = "use", suffix = "ing"
+        // - "prefix-,start,end,-suffix" -> full syntax
         
         var textStart = null;
         var textEnd = null;
         var prefix = null;
         var suffix = null;
         
+        // Step 1: Extract prefix if present (format: "prefix-,rest")
         var prefixMatch = fragment.match(/^([^,]+?)-,(.+)$/);
         if (prefixMatch) {
           prefix = prefixMatch[1];
@@ -111,33 +146,51 @@
           log('Found prefix:', prefix);
         }
         
+        // Step 2: Extract suffix if present (format: "rest,-suffix")
+        // Must check for suffix BEFORE checking range (to avoid false positives)
         var suffixMatch = fragment.match(/^(.+?),-([^,]+)$/);
         if (suffixMatch) {
           suffix = suffixMatch[2];
-          fragment = suffixMatch[1];
+          fragment = suffixMatch[1]; // Remaining part after removing suffix
           log('Found suffix:', suffix);
         }
         
+        // Step 3: Extract range if present (format: "textStart,textEnd")
+        // Only check for comma if it's followed by something (not end of string)
+        // But be careful - commas in text are valid!
+        // Range syntax typically: "start,end" where end is not followed by another comma
         var commaIndex = fragment.indexOf(',');
         if (commaIndex !== -1 && commaIndex < fragment.length - 1) {
-          var parts = fragment.split(',', 2);
+          // Check if this looks like range syntax (not just comma in text)
+          // Range: "start,end" where we can reasonably split
+          // Simple heuristic: if comma is not the last char, likely a range
+          var parts = fragment.split(',', 2); // Split only first comma
           if (parts.length === 2 && parts[1].length > 0) {
+            // Only treat as range if second part doesn't start with a dash (which would be suffix)
+            // And if it's reasonably short (not a continuation of text with comma)
             if (!parts[1].startsWith('-')) {
+              // Trim whitespace from both parts to handle URL-encoded spaces
               textStart = parts[0].trim();
               textEnd = parts[1].trim();
               log('Found range:', textStart, 'to', textEnd);
             } else {
+              // This was actually suffix, but we already handled it above
               textStart = fragment.trim();
             }
           } else {
             textStart = fragment.trim();
           }
         } else {
+          // No comma, so this is just textStart
           textStart = fragment.trim();
         }
         
+        // Final extraction: Use full range if available (better for SEO/CEO/website owners)
+        // Store as "textStart...textEnd" if range exists, otherwise just textStart
         var finalFragment = textStart;
         if (textEnd) {
+          // Track full range for better SEO value (shows what was actually cited)
+          // Format: "start...end" (e.g., "hello...world")
           finalFragment = textStart + '...' + textEnd;
           log('Range detected, tracking full range:', finalFragment);
         }
@@ -146,6 +199,8 @@
         log('✅ Fragment', (i + 1) + ':', finalFragment, prefix ? '(prefix: ' + prefix + ')' : '', suffix ? '(suffix: ' + suffix + ')' : '');
       }
       
+      // Combine all fragments (comma-separated) for tracking
+      // Example: "hello" or "hello...world" or "frag1, frag2" or "frag1...end1, frag2...end2"
       var combinedFragment = parsedFragments.join(', ');
       log('✅ All fragments combined:', combinedFragment);
       return combinedFragment || null;
@@ -208,6 +263,8 @@
   
   /**
    * Sanitize fragment text to remove sensitive patterns
+   * Since this is client-side code, the logic is visible - that's OK, it's defensive
+   * Server-side sanitization provides additional protection
    */
   function sanitizeFragmentText(text) {
     if (!text || typeof text !== 'string') {
@@ -216,16 +273,30 @@
     
     var sanitized = text;
     
+    // Remove common password patterns (case-insensitive)
     sanitized = sanitized.replace(/\bpassword[=:]\s*\S+/gi, '[REDACTED]');
     sanitized = sanitized.replace(/\bpasswd[=:]\s*\S+/gi, '[REDACTED]');
     sanitized = sanitized.replace(/\bpwd[=:]\s*\S+/gi, '[REDACTED]');
+    
+    // Remove API key patterns
     sanitized = sanitized.replace(/\b(api[_-]?key|apikey)[=:]\s*\S+/gi, '[REDACTED]');
     sanitized = sanitized.replace(/\b(secret|token|auth)[=:]\s*\S+/gi, '[REDACTED]');
+    
+    // Remove credit card patterns (basic)
     sanitized = sanitized.replace(/\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/g, '[REDACTED]');
+    
+    // Remove SSN patterns (US format)
     sanitized = sanitized.replace(/\b\d{3}-\d{2}-\d{4}\b/g, '[REDACTED]');
+    
+    // Remove session/token patterns in text
     sanitized = sanitized.replace(/session[=:]\s*[a-zA-Z0-9_-]+/gi, '[REDACTED]');
     sanitized = sanitized.replace(/token[=:]\s*[a-zA-Z0-9_-]+/gi, '[REDACTED]');
+    
+    // Remove JWT tokens (three base64 parts separated by dots)
+    // Pattern: eyJ...base64... . eyJ...base64... . ...base64...
     sanitized = sanitized.replace(/\beyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, '[REDACTED]');
+    
+    // Remove email addresses (PII protection)
     sanitized = sanitized.replace(/\b[\w\.-]+@[\w\.-]+\.\w+\b/g, '[REDACTED]');
     
     return sanitized;
@@ -233,6 +304,7 @@
   
   /**
    * Sanitize referrer URL by removing sensitive query parameters
+   * Keeps the URL structure but removes tokens/keys
    */
   function sanitizeReferrerUrl(url) {
     if (!url || typeof url !== 'string') {
@@ -240,19 +312,22 @@
     }
     
     try {
+      // Only sanitize if it's a full URL with query parameters
       if (url.indexOf('?') === -1 && url.indexOf('&') === -1) {
-        return url;
+        return url; // No query params, return as-is
       }
       
       var urlObj;
       try {
         urlObj = new URL(url);
       } catch (e) {
+        // If URL parsing fails, try basic sanitization
         return url.replace(/[?&](token|session|key|auth|api_key|secret|password)=[^&\s]+/gi, function(match) {
           return match.split('=')[0] + '=[REDACTED]';
         });
       }
       
+      // List of sensitive query parameter names
       var sensitiveParams = [
         'token', 'session', 'sessionid', 'session_id',
         'key', 'api_key', 'apikey', 'access_key',
@@ -263,6 +338,7 @@
         'oauth_token', 'oauth_secret'
       ];
       
+      // Remove sensitive parameters
       sensitiveParams.forEach(function(param) {
         urlObj.searchParams.delete(param);
       });
@@ -270,6 +346,7 @@
       return urlObj.toString();
     } catch (e) {
       log('Error sanitizing referrer URL:', e);
+      // Fallback: basic regex replacement
       return url.replace(/[?&](token|session|key|auth)=[^&\s]+/gi, function(match) {
         return match.split('=')[0] + '=[REDACTED]';
       });
@@ -278,15 +355,19 @@
   
   /**
    * Reconstruct full URL with original text fragment
+   * This allows users to click the URL and see the highlighted text
    */
   function getTargetUrlWithFragment(originalHash) {
     try {
+      // Get base URL without hash
       var baseUrl = window.location.href.split('#')[0];
       
+      // Reconstruct with original fragment
       if (originalHash && originalHash.indexOf(':~:text=') !== -1) {
         return baseUrl + originalHash;
       }
       
+      // Fallback to current href
       return window.location.href;
     } catch (e) {
       log('Error reconstructing URL:', e);
@@ -298,21 +379,28 @@
    * Send tracking event to backend
    */
   function sendTrackingEvent(fragment, originalHash) {
+    // Respect Do Not Track (DNT) header - privacy best practice
     if (navigator.doNotTrack === '1' || navigator.doNotTrack === 'yes') {
       log('Do Not Track enabled, skipping tracking');
-      return;
+      return; // Exit early - don't track
     }
     
     var trafficInfo = detectTrafficSource(document.referrer);
+    
+    // Reconstruct full URL with fragment for clickable link
     var targetUrlWithFragment = getTargetUrlWithFragment(originalHash);
+    
+    // Sanitize fragment text to remove sensitive patterns
     var sanitizedFragment = sanitizeFragmentText(fragment);
+    
+    // Sanitize referrer URL to remove sensitive query parameters
     var sanitizedReferrer = sanitizeReferrerUrl(document.referrer || '');
     
     var payload = {
       api_key: config.apiKey,
-      fragment_text: sanitizedFragment,
-      referrer_url: sanitizedReferrer,
-      target_url: targetUrlWithFragment,
+      fragment_text: sanitizedFragment, // Sanitized before sending
+      referrer_url: sanitizedReferrer, // Sanitized before sending
+      target_url: targetUrlWithFragment, // Full URL with fragment (clickable!)
       user_agent: navigator.userAgent,
       metadata: {
         traffic_source: trafficInfo.source,
@@ -327,6 +415,7 @@
     
     log('Sending tracking event:', payload);
     
+    // Dispatch custom event for UI components to listen to
     if (typeof window !== 'undefined' && window.dispatchEvent) {
       try {
         var event = new CustomEvent('citationtrack:tracked', {
@@ -335,8 +424,10 @@
         });
         var dispatched = window.dispatchEvent(event);
         log('Custom event dispatched, result:', dispatched);
+        // Store in global for debugging
         window.__lastCitationTrackEvent = payload;
         
+        // Log to browser console directly for debugging
         console.log('[FragmentTracker] ✅ EVENT DISPATCHED:', {
           eventName: 'citationtrack:tracked',
           fragmentText: payload.fragment_text,
@@ -348,16 +439,19 @@
       }
     }
     
+    // Use sendBeacon if available (reliable for page unload)
+    // Note: sendBeacon doesn't support custom headers, so we'll use fetch for Supabase Edge Functions
+    // which require the 'apikey' header
     fetch(config.endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'apikey': config.supabaseAnonKey,
-        'Authorization': 'Bearer ' + config.supabaseAnonKey
+        'apikey': config.supabaseAnonKey, // Required by Supabase Edge Functions
+        'Authorization': 'Bearer ' + config.supabaseAnonKey // Also try Authorization header
       },
       body: JSON.stringify(payload),
       keepalive: true,
-      credentials: 'omit'
+      credentials: 'omit' // Don't send credentials to work with CORS wildcard
     }).then(function(response) {
       if (response.ok) {
         log('Event sent successfully');
@@ -369,9 +463,11 @@
           });
         }
       } else {
+        // Log detailed error for debugging
         var status = response.status;
         var statusText = response.statusText;
         response.text().then(function(errorText) {
+          // Handle empty response
           if (!errorText || errorText.trim() === '') {
             console.error('[CitationTrack] Request failed:', {
               status: status,
@@ -392,6 +488,7 @@
               fullError: errorJson
             });
           } catch (e) {
+            // If parsing fails, log the raw text
             console.error('[CitationTrack] Request failed:', {
               status: status,
               statusText: statusText,
@@ -422,7 +519,8 @@
   }
   
   /**
-   * Initialize tracking
+   * Initialize tracking IMMEDIATELY
+   * CRITICAL: Must run synchronously when script loads, before browser clears fragment
    */
   function init() {
     log('=== CitationTrack Tracker Initializing ===');
@@ -433,6 +531,7 @@
     log('Preservation script ran?:', window.__preservationScriptRan);
     log('Preserved fragment global?:', window.__preservedTextFragment);
     
+    // Also check sessionStorage directly
     try {
       var storedFragment = window.sessionStorage.getItem('__textFragment');
       log('sessionStorage __textFragment:', storedFragment);
@@ -440,8 +539,10 @@
       log('Cannot read sessionStorage:', e);
     }
     
+    // Get original hash before parsing (for full URL reconstruction)
     var originalHash = null;
     try {
+      // Try Navigation Timing API first (preserves original fragment)
       var entries = performance.getEntries();
       var navigationEntry = null;
       for (var i = 0; i < entries.length; i++) {
@@ -461,6 +562,7 @@
         }
       }
       
+      // Fallback to window.location.hash or preserved fragment
       if (!originalHash || originalHash.indexOf(':~:text=') === -1) {
         originalHash = window.location.hash || window.__preservedTextFragment || null;
         log('Using fallback hash:', originalHash);
@@ -470,6 +572,7 @@
       originalHash = window.location.hash || null;
     }
     
+    // Check for text fragment IMMEDIATELY
     var fragment = getTextFragment();
     
     if (fragment) {
@@ -482,6 +585,8 @@
     }
   }
   
+  // Start tracking IMMEDIATELY - don't wait for DOMContentLoaded
+  // Text fragments are cleared by the browser very quickly!
   log('Script loaded, starting init...');
   init();
 })();
